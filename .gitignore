@@ -1,0 +1,77 @@
+# -------------------------------
+# Python + Streamlit .gitignore
+# -------------------------------
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+
+# Streamlit cache and logs
+.streamlit/
+.streamlit/cache/
+.streamlit/secrets.toml
+.streamlit/config.toml
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+*.manifest
+*.spec
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# PyCharm / VSCode / other IDEs
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# macOS / Windows system files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Environment files (optional — comment out if you track them)
+.env
+.env.*
+*.env
+
+# Local database or data files
+*.sqlite3
+*.db
+data/
+datasets/
+uploads/
