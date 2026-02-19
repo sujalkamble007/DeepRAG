@@ -16,39 +16,52 @@ import datetime
 import textwrap
 
 # ─────────────────────────────────────────────────────────────
-from dotenv import load_dotenv
+# Load configuration from TOML
+from config import load_config
 
-# Load environment variables from .env file
-load_dotenv()
-
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-api_key = os.getenv("OPENAI_API_KEY")
-
-if not api_key or not isinstance(api_key, str) or api_key.startswith("sk-REPLACE"):
-    st.warning("⚠️ Missing or invalid API key. Please add it to your .env file as OPENAI_API_KEY.")
+try:
+    config = load_config()
+except Exception as e:
+    st.error(f"❌ Configuration loading failed: {e}")
     st.stop()
 
-# Set environment for OpenAI
+# Get API key from TOML configuration
+try:
+    api_key = config.get_secret("openai_api_key")
+except ValueError as e:
+    st.error(f"❌ {e}")
+    st.stop()
+
+# Set environment variables from config
+os.environ["TOKENIZERS_PARALLELISM"] = str(config.get("processing.tokenizers_parallelism", "false")).lower()
 os.environ["OPENAI_API_KEY"] = api_key
 
 # Initialize OpenAI client
 try:
     client = OpenAI(api_key=api_key)
 except Exception as e:
-    st.error("OpenAI client initialization failed. Check your API key and network.")
+    st.error("❌ OpenAI client initialization failed. Check your API key and network.")
     st.stop()
 
 # ─── Caching embedding model ─────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def load_embedding_model():
-    model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
-    model.max_seq_length = 256
+    embedding_model = config.get("model.embedding_model", "all-MiniLM-L6-v2")
+    embedding_device = config.get("model.embedding_device", "cpu")
+    max_seq_length = config.get("model.max_seq_length", 256)
+    
+    model = SentenceTransformer(embedding_model, device=embedding_device)
+    model.max_seq_length = max_seq_length
     return model
 
 model = load_embedding_model()
 
 # ─── Helper functions ─────────────────────────────────────────
-def chunk_text(txt, size=300):
+chunk_size = config.get("rag.chunk_size", 300)
+
+def chunk_text(txt, size=None):
+    if size is None:
+        size = chunk_size
     words = txt.split()
     return [" ".join(words[i:i+size]) for i in range(0, len(words), size)]
 
@@ -93,9 +106,14 @@ st.markdown("---")
 # ─── Sidebar ─────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
-    top_k = st.slider("Top-k retrieved chunks", 1, 8, 3)
-    temperature = st.slider("Model temperature", 0.0, 1.0, 0.3, 0.05)
-    model_choice = st.selectbox("Model", ["gpt-3.5-turbo", "gpt-4", "gpt-4o-mini"], index=2)
+    top_k_default = config.get("rag.top_k_default", 3)
+    temperature_default = config.get("rag.temperature_default", 0.3)
+    models_list = config.get("openai.models", ["gpt-3.5-turbo", "gpt-4", "gpt-4o-mini"])
+    default_model_idx = models_list.index(config.get("openai.default_model", "gpt-4o-mini"))
+    
+    top_k = st.slider("Top-k retrieved chunks", 1, 8, top_k_default)
+    temperature = st.slider("Model temperature", 0.0, 1.0, temperature_default, 0.05)
+    model_choice = st.selectbox("Model", models_list, index=default_model_idx)
 
     st.markdown("---")
     if st.button("🧹 Clear chat & index"):
@@ -138,7 +156,7 @@ col3.metric("Tokens (approx.)", estimate_tokens(raw_text))
 # ─── Build Embedding Index ────────────────────────────────────
 if "chunks" not in st.session_state:
     with st.spinner("Building RAG knowledge base..."):
-        chunks = chunk_text(raw_text, 300)
+        chunks = chunk_text(raw_text, chunk_size)
         embeddings = model.encode(chunks).astype("float32")
         st.session_state["chunks"] = chunks
         st.session_state["embeddings"] = embeddings

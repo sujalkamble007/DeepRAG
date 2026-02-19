@@ -64,10 +64,11 @@ Thumbs.db
 *.bak
 *.swp
 
-# Environment files (optional — comment out if you track them)
+# Environment files and configuration with secrets (optional — comment out if you track them)
 .env
 .env.*
 *.env
+config.toml
 
 # Local database or data files
 *.sqlite3
