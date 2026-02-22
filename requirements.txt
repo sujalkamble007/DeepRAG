@@ -2,6 +2,6 @@ streamlit
 pypdf
 faiss-cpu
 sentence-transformers
-openai
+groq
 python-dotenv
 tomli>=1.2.0;python_version<"3.11"

@@ -21,16 +21,14 @@ Open: [http://localhost:8501](http://localhost:8501)
 
 ### Configuration
 
-Set your OpenAI-compatible key before running:
+Set your Google Gemini API key before running.
 
-```powershell
-setx OPENAI_API_KEY "sk-..."
-```
+Get a free key at: https://aistudio.google.com/apikey
 
-or create `.streamlit/secrets.toml`:
+Create `.streamlit/secrets.toml`:
 
 ```toml
-openai_api_key = "sk-..."
+gemini_api_key = "your-gemini-api-key-here"
 ```
 
 ---

@@ -3,6 +3,7 @@
 DeepRAG — NLP-Powered Deep-Sea Governance Document Intelligence Assistant
 Uses Retrieval-Augmented Generation (RAG) to analyze and interpret complex policy,
 research, and environmental documents related to deep-sea governance.
+Powered by Groq API (free tier with Llama models).
 """
 
 import os
@@ -11,7 +12,7 @@ from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
-from openai import OpenAI
+from groq import Groq
 import datetime
 import textwrap
 
@@ -27,20 +28,19 @@ except Exception as e:
 
 # Get API key from TOML configuration
 try:
-    api_key = config.get_secret("openai_api_key")
+    api_key = config.get_secret("groq_api_key")
 except ValueError as e:
     st.error(f"❌ {e}")
     st.stop()
 
 # Set environment variables from config
 os.environ["TOKENIZERS_PARALLELISM"] = str(config.get("processing.tokenizers_parallelism", "false")).lower()
-os.environ["OPENAI_API_KEY"] = api_key
 
-# Initialize OpenAI client
+# Initialize Groq client
 try:
-    client = OpenAI(api_key=api_key)
+    client = Groq(api_key=api_key)
 except Exception as e:
-    st.error("❌ OpenAI client initialization failed. Check your API key and network.")
+    st.error("❌ Groq client initialization failed. Check your API key and network.")
     st.stop()
 
 # ─── Caching embedding model ─────────────────────────────────
@@ -54,7 +54,7 @@ def load_embedding_model():
     model.max_seq_length = max_seq_length
     return model
 
-model = load_embedding_model()
+embed_model = load_embedding_model()
 
 # ─── Helper functions ─────────────────────────────────────────
 chunk_size = config.get("rag.chunk_size", 300)
@@ -71,14 +71,12 @@ def estimate_tokens(text):
 def build_faiss_index(embeds: np.ndarray):
     dimension = embeds.shape[1]
     idx = faiss.IndexFlatL2(dimension)
-    # Ensure embeddings are float32 and properly shaped
     embeddings_f32 = embeds.astype(np.float32)
     idx.add(embeddings_f32)  # type: ignore
     return idx
 
 def semantic_retrieve(query, index_obj, chunks_list, top_k=3):
-    q_vec = model.encode([query]).astype("float32")
-    # Ensure q_vec is 2D array for FAISS
+    q_vec = embed_model.encode([query]).astype("float32")
     if len(q_vec.shape) == 1:
         q_vec = q_vec.reshape(1, -1)
     distances, indices = index_obj.search(q_vec, min(top_k, len(chunks_list)))
@@ -108,8 +106,9 @@ with st.sidebar:
     st.markdown("### ⚙️ Settings")
     top_k_default = config.get("rag.top_k_default", 3)
     temperature_default = config.get("rag.temperature_default", 0.3)
-    models_list = config.get("openai.models", ["gpt-3.5-turbo", "gpt-4", "gpt-4o-mini"])
-    default_model_idx = models_list.index(config.get("openai.default_model", "gpt-4o-mini"))
+    models_list = config.get("groq.models", ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"])
+    default_model_name = config.get("groq.default_model", "llama-3.3-70b-versatile")
+    default_model_idx = models_list.index(default_model_name) if default_model_name in models_list else 0
     
     top_k = st.slider("Top-k retrieved chunks", 1, 8, top_k_default)
     temperature = st.slider("Model temperature", 0.0, 1.0, temperature_default, 0.05)
@@ -157,7 +156,7 @@ col3.metric("Tokens (approx.)", estimate_tokens(raw_text))
 if "chunks" not in st.session_state:
     with st.spinner("Building RAG knowledge base..."):
         chunks = chunk_text(raw_text, chunk_size)
-        embeddings = model.encode(chunks).astype("float32")
+        embeddings = embed_model.encode(chunks).astype("float32")
         st.session_state["chunks"] = chunks
         st.session_state["embeddings"] = embeddings
         st.session_state["index"] = build_faiss_index(embeddings)
@@ -180,8 +179,6 @@ if "chat_history" not in st.session_state:
             "and sustainability reports. Provide insightful, concise, and domain-relevant "
             "answers with references from the given context."
         ),
-        # Use timezone-aware UTC timestamp to avoid deprecation of utcnow()
-        "ts": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }]
 
 with st.form("query_form", clear_on_submit=False):
@@ -203,11 +200,10 @@ if submit and query:
         st.session_state.chat_history.append({"role": "user", "content": query})
 
         try:
-            # Create messages list with proper typing
             messages = st.session_state.chat_history + [{"role": "user", "content": system_prompt}]
             response = client.chat.completions.create(
                 model=model_choice,
-                messages=messages,  # type: ignore
+                messages=messages,
                 temperature=float(temperature),
             )
             answer = response.choices[0].message.content or "No response generated"
@@ -238,4 +234,4 @@ for msg in st.session_state.get("chat_history", []):
 
 # ─── Footer ─────────────────────────────────────────────────
 st.markdown("---")
-st.caption("DeepRAG — NLP Technique for Efficient Deep-Sea Governance Document Analysis • Built with RAG and Streamlit.")
+st.caption("DeepRAG — NLP Technique for Efficient Deep-Sea Governance Document Analysis • Built with RAG, Groq & Streamlit.")
